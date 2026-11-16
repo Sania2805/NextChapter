@@ -1,0 +1,1 @@
+**NextChapter** is a full-stack book recommendation web application powered by collaborative filtering. Built with React, FastAPI, and MySQL, it helps readers discover books based on shared reading preferences.
