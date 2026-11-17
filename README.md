@@ -113,6 +113,8 @@ For a deployment, build the frontend with `npm run build`, serve its output over
 
 To use hosted PostgreSQL, set `DATABASE_URL` on the API server to the provider's PostgreSQL connection URI. NextChapter uses this URI in place of the local MySQL settings. For [Aiven PostgreSQL](https://aiven.io/docs/products/postgresql/get-started), upload the [Aiven CA certificate](https://aiven.io/docs/platform/concepts/tls-ssl-certificates) as a server file and set `DB_SSL_CA` to its path to verify the server's identity. Run `python -m alembic -c backend/alembic.ini upgrade head` against the new database before serving requests. A fresh database starts with empty accounts and reading lists.
 
+For the NextChapter Render service, use the Python runtime and leave **Root Directory** blank. Set **Build Command** to `bash backend/render-build.sh` and **Start Command** to `bash backend/render-start.sh`. The build script downloads `nextchapter-runtime.zip` from the private `Sania2805/NextChapter-runtime` release tagged `v1` using `RUNTIME_TOKEN`. The start script runs the Alembic migration and starts FastAPI on Render's assigned port.
+
 ## Dataset credit
 
 The Book-Crossing dataset was collected by Cai-Nicolas Ziegler from the Book-Crossing community. Dataset reference is Cai-Nicolas Ziegler, Sean M. McNee, Joseph A. Konstan, and Georg Lausen, *Improving Recommendation Lists Through Topic Diversification*, WWW 2005. [GroupLens dataset page](https://grouplens.org/datasets/book-crossing/) · [University of Freiburg project and publication](https://dbis.informatik.uni-freiburg.de/forschung/projekte/2nd-Gen-RS/index.html)
