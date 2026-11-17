@@ -24,3 +24,4 @@ curl -fsSL -H "Authorization: Bearer $RUNTIME_TOKEN" -H 'Accept: application/oct
     "$asset_url" -o "$work_dir/runtime.zip"
 python -m zipfile -e "$work_dir/runtime.zip" .
 python -m pip install -r backend/requirements.txt
+python backend/surprise.py

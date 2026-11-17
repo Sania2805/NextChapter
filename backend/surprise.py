@@ -1,19 +1,20 @@
+import json
 from functools import lru_cache
 from pathlib import Path
 from random import choice, sample
 
 import pandas as pd
 
-from recommender import get_book_info, metadata_by_isbn, work_key
+from recommender import book_exists, get_book_info, work_key
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data" / "processed"
+POOL_PATH = DATA_DIR / "surprise_pool.json"
 # About 14,000 editions in Book-Crossing have at least five explicit ratings.
 MIN_EXPLICIT_RATINGS = 5
 PREVIEW_COUNT = 8
 
 
-@lru_cache(maxsize=1)
-def surprise_pool():
+def build_surprise_pool():
     ratings = pd.read_csv(
         DATA_DIR / "explicit_ratings.csv", usecols=["isbn", "rating"], dtype={"isbn": str}
     )
@@ -27,8 +28,8 @@ def surprise_pool():
     ).drop_duplicates("isbn").set_index("isbn")["year"]
 
     books = {}
-    for isbn, stat in eligible.iterrows():
-        if isbn not in metadata_by_isbn.index:
+    for isbn, count, average in eligible.itertuples():
+        if not book_exists(isbn):
             continue
         key = work_key(isbn)
         if key in books:
@@ -40,10 +41,20 @@ def surprise_pool():
         books[key] = {
             **book,
             "year": int(year) if pd.notna(year) and year > 0 else None,
-            "average_rating": round(float(stat["mean"]), 1),
-            "rating_count": int(stat["count"]),
+            "average_rating": round(float(average), 1),
+            "rating_count": int(count),
         }
     return books
+
+
+@lru_cache(maxsize=1)
+def surprise_pool():
+    if not POOL_PATH.is_file():
+        return build_surprise_pool()
+
+    with POOL_PATH.open(encoding="utf-8") as source:
+        books = json.load(source)
+    return {work_key(book["isbn"]): book for book in books}
 
 
 def draw_surprise(previous_isbns, saved_isbns):
@@ -59,3 +70,10 @@ def draw_surprise(previous_isbns, saved_isbns):
     preview_keys = [key for key in pool if key != winner]
     previews = sample(preview_keys, min(PREVIEW_COUNT, len(preview_keys)))
     return {"book": pool[winner], "previews": [pool[key] for key in previews]}
+
+
+if __name__ == "__main__":
+    pool = build_surprise_pool()
+    with POOL_PATH.open("w", encoding="utf-8") as target:
+        json.dump(list(pool.values()), target, ensure_ascii=False, separators=(",", ":"))
+    print(f"Prepared {len(pool):,} eligible Surprise Me picks.")
