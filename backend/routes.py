@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from database import COOKIE_SECURE, JWT_SECRET, ORIGINS, get_db
 from db_models import ReadingEntry, User
-from recommender import get_book_info, metadata_by_isbn
+from recommender import book_exists, get_book_info
 from schemas import Account, Login, ReadingItem, Register, SaveBook, StatusUpdate
 from surprise import draw_surprise
 
@@ -168,7 +168,7 @@ def reading_list(user: CurrentUser, db: Db):
 
 @router.post("/reading-list", response_model=ReadingItem, status_code=201, dependencies=csrf)
 def save(body: SaveBook, user: CurrentUser, db: Db):
-    if body.isbn not in metadata_by_isbn.index:
+    if not book_exists(body.isbn):
         raise HTTPException(404, "Book ISBN was not found in the catalog.")
     row = ReadingEntry(user_id=user.id, isbn=body.isbn, reading_status=body.reading_status)
     db.add(row)

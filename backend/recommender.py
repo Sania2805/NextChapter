@@ -1,6 +1,9 @@
 from collections import defaultdict
+from heapq import nsmallest
 from html import unescape
 from pathlib import Path
+from sys import intern
+from typing import NamedTuple
 
 import joblib
 import numpy as np
@@ -14,32 +17,60 @@ book_user_matrix = joblib.load(MODEL_DIR / "book_user_matrix.pkl").tocsr()
 train_books = tuple(map(str, joblib.load(MODEL_DIR / "train_books.pkl")))
 book_to_idx = joblib.load(MODEL_DIR / "book_to_idx.pkl")
 
-metadata = pd.read_csv(MODEL_DIR / "book_metadata.csv", dtype={"isbn": str}).fillna("")
-metadata = metadata.drop_duplicates("isbn")
-metadata_by_isbn = metadata.set_index("isbn")
-popularity = pd.read_csv(MODEL_DIR / "popularity_ranking.csv", dtype={"isbn": str}).fillna("")
-
-work_by_isbn = {}
-search_titles = {}
-model_editions = defaultdict(list)
+popular_isbns = tuple(pd.read_csv(
+    MODEL_DIR / "popularity_ranking.csv", usecols=["isbn"], dtype={"isbn": str}
+)["isbn"].dropna())
 rating_presence = book_user_matrix.copy()
 rating_presence.eliminate_zeros()
 rating_presence.data = np.ones(rating_presence.nnz, dtype=np.int32)
 rating_counts = rating_presence.getnnz(axis=1)
 
-for row in metadata.itertuples(index=False):
-    key = identify_work(row.isbn, row.title, row.author)
-    work_by_isbn[row.isbn] = key
-    search_titles[row.isbn] = normalize(row.title)
-    if row.isbn in book_to_idx:
-        model_editions[key].append(row.isbn)
+class CatalogBook(NamedTuple):
+    title: str
+    author: str
+    image: str
+    work: tuple[str, str]
+    search_title: str
 
-for editions in model_editions.values():
-    editions.sort(key=lambda isbn: (-rating_counts[book_to_idx[isbn]], isbn))
+
+def load_catalog():
+    catalog = {}
+    editions_by_work = defaultdict(list)
+    # Keep only the fields used by the API, and release raw CSV rows between chunks.
+    with pd.read_csv(MODEL_DIR / "book_metadata.csv", dtype={"isbn": str}, chunksize=8192) as chunks:
+        for chunk in chunks:
+            for row in chunk.fillna("").itertuples(index=False):
+                isbn = row.isbn
+                if isbn in catalog:
+                    continue
+                author_key, canonical_title = identify_work(isbn, row.title, row.author)
+                search_title = normalize(row.title)
+                key = (intern(author_key), canonical_title)
+                catalog[isbn] = CatalogBook(
+                    unescape(row.title),
+                    unescape(AUTHOR_CORRECTIONS.get(isbn, row.author)),
+                    row.image_l or row.image_m,
+                    key,
+                    canonical_title if search_title == canonical_title else search_title,
+                )
+                if isbn in book_to_idx:
+                    editions_by_work[key].append(isbn)
+
+    for editions in editions_by_work.values():
+        editions.sort(key=lambda isbn: (-rating_counts[book_to_idx[isbn]], isbn))
+    return catalog, editions_by_work
+
+
+catalog, model_editions = load_catalog()
+
+
+def book_exists(isbn):
+    return isbn in catalog
 
 
 def work_key(isbn):
-    return work_by_isbn.get(isbn, ("isbn", isbn))
+    book = catalog.get(isbn)
+    return book.work if book else ("isbn", isbn)
 
 
 def has_model_editions(isbn):
@@ -48,15 +79,15 @@ def has_model_editions(isbn):
 
 def get_book_info(isbn):
     isbn = str(isbn)
-    if isbn not in metadata_by_isbn.index:
+    book = catalog.get(isbn)
+    if book is None:
         return {"isbn": isbn, "title": "Unknown", "author": "", "image": ""}
 
-    book = metadata_by_isbn.loc[isbn]
     return {
         "isbn": isbn,
-        "title": unescape(str(book["title"])),
-        "author": unescape(AUTHOR_CORRECTIONS.get(isbn, str(book["author"]))),
-        "image": str(book["image_l"] or book["image_m"]),
+        "title": book.title,
+        "author": book.author,
+        "image": book.image,
     }
 
 
@@ -66,8 +97,9 @@ def search_books(query, limit=10, *, prefer_model=False):
         return []
 
     matches = {}
-    for isbn, title in search_titles.items():
-        key = work_by_isbn[isbn]
+    for isbn, book in catalog.items():
+        title = book.search_title
+        key = book.work
         canonical_title = key[1] if key[0] != "isbn" else title
         if query_key not in title and query_key not in canonical_title:
             continue
@@ -75,18 +107,17 @@ def search_books(query, limit=10, *, prefer_model=False):
         if key not in matches or exact and not matches[key][1]:
             matches[key] = (isbn, exact)
 
-    results = []
-    for key, (matched_isbn, exact) in matches.items():
-        editions = model_editions.get(key)
-        representative = editions[0] if editions else matched_isbn
-        count = rating_counts[book_to_idx[representative]] if editions else 0
-        priority = (not editions, not exact) if prefer_model else (not exact, not editions)
-        results.append(((*priority, -count), representative))
+    def ranked_matches():
+        for key, (matched_isbn, exact) in matches.items():
+            editions = model_editions.get(key)
+            representative = editions[0] if editions else matched_isbn
+            count = rating_counts[book_to_idx[representative]] if editions else 0
+            priority = (not editions, not exact) if prefer_model else (not exact, not editions)
+            yield (*priority, -count), representative
 
-    results.sort()
     return [
         {**get_book_info(isbn), "available": has_model_editions(isbn)}
-        for _, isbn in results[:limit]
+        for _, isbn in nsmallest(limit, ranked_matches())
     ]
 
 
@@ -124,9 +155,10 @@ def recommend_books(isbn, limit=10):
             if overlap < MIN_SHARED_READERS:
                 continue
             candidate = train_books[index]
-            if candidate not in work_by_isbn:
+            book = catalog.get(candidate)
+            if book is None:
                 continue
-            key = work_by_isbn[candidate]
+            key = book.work
             if key == source_work:
                 continue
 
@@ -146,10 +178,11 @@ def recommend_books(isbn, limit=10):
 def get_popular_books(limit=10, exclude_isbn=None):
     results = []
     seen = {work_key(exclude_isbn)} if exclude_isbn else set()
-    for isbn in popularity["isbn"]:
-        if isbn not in work_by_isbn:
+    for isbn in popular_isbns:
+        book = catalog.get(isbn)
+        if book is None:
             continue
-        key = work_by_isbn[isbn]
+        key = book.work
         if key in seen:
             continue
         seen.add(key)

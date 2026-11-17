@@ -11,7 +11,7 @@ from routes import router
 
 from recommender import (
     has_model_editions,
-    metadata_by_isbn,
+    book_exists,
     get_book_info,
     search_books,
     recommend_books,
@@ -105,7 +105,7 @@ app.include_router(router)
 
 @app.get("/api/books/{isbn}")
 def book_details(isbn: str):
-    if isbn not in metadata_by_isbn.index:
+    if not book_exists(isbn):
         raise HTTPException(404, "Book not found in the catalog.")
     return {**get_book_info(isbn), "available": has_model_editions(isbn)}
 
