@@ -1,0 +1,6 @@
+-r ../backend/requirements.txt
+
+jupyterlab>=4.6,<5
+ipykernel>=7.4,<8
+matplotlib>=3.11,<4
+seaborn>=0.13,<1

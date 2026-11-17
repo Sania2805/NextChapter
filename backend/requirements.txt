@@ -1,0 +1,19 @@
+fastapi>=0.163,<1
+pydantic>=2.14,<3
+uvicorn[standard]>=0.54,<1
+
+# Keep training and inference on the same serialization stack.
+joblib==1.6.0
+numpy==2.5.5
+pandas==3.1.1
+scipy==1.18.1
+scikit-learn==1.9.1
+
+SQLAlchemy>=2,<3
+alembic>=1.14,<2
+PyMySQL[rsa]>=1.1,<2
+python-dotenv>=1,<2
+PyJWT>=2.10,<3
+argon2-cffi>=25,<26
+email-validator>=2,<3
+httpx>=0.28,<1
