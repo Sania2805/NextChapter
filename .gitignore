@@ -1,0 +1,41 @@
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Python and Jupyter
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# Frontend dependencies and builds
+node_modules/
+dist/
+coverage/
+
+# Downloaded data, generated models, and database exports
+/data/
+/models/
+/artifacts/
+*.sql.gz
+*.sqlite*
+*.db
+
+# Local backups and exploratory notebooks
+*.zip
+/*.ipynb
+*.log
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
