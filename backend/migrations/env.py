@@ -4,7 +4,7 @@ from database import Base, engine
 import db_models  # registers ORM tables
 
 if context.is_offline_mode():
-    context.configure(dialect_name="mysql", target_metadata=Base.metadata, literal_binds=True)
+    context.configure(dialect_name=engine.dialect.name, target_metadata=Base.metadata, literal_binds=True)
     with context.begin_transaction():
         context.run_migrations()
 else:

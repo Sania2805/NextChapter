@@ -1,4 +1,4 @@
-"""Create disposable accounts and verify the application against configured MySQL.
+"""Create disposable accounts and verify the application against the configured database.
 
 Use only a development or test database. No existing account is modified.
 """
@@ -91,7 +91,7 @@ def run():
         other_device.cookies.clear()
         other_device.cookies.set(COOKIE, expired)
         assert "expired" in request(other_device, "GET", "/auth/me", 401).json()["detail"]
-        print("Passed: catalog, KNN, validation, CSRF, cookies, expiry, MySQL persistence and account isolation.")
+        print("Passed: catalog, KNN, validation, CSRF, cookies, expiry, persistence and account isolation.")
     finally:
         if emails:
             with Session.begin() as db:

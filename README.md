@@ -11,7 +11,7 @@ NextChapter is a full-stack book discovery app built with React, Vite, and FastA
 
 ## Local setup
 
-Use Python 3.14 and Node.js 22.12 or later. MySQL 8 is needed for accounts and reading lists. The public catalog and recommendations can run without MySQL.
+Use Python 3.14 and Node.js 22.12 or later. Accounts and reading lists use MySQL 8 or PostgreSQL. Public discovery can run without a database.
 
 ### 1. Install Python dependencies
 
@@ -83,15 +83,15 @@ Open [NextChapter](http://127.0.0.1:5173) or the [FastAPI docs](http://127.0.0.1
 | Path | Contents |
 | --- | --- |
 | `frontend/` | React app, Vite configuration, and npm lockfile |
-| `backend/` | FastAPI routes, recommender, MySQL models, and Alembic migrations |
+| `backend/` | FastAPI routes, recommender, database models, and Alembic migrations |
 | `notebooks/` | Data cleaning, analysis, and model training |
 | `data/`, `models/` | Local dataset and generated files created during setup |
 
 ## Checks
 
 - From `frontend/`, run `npm run build` to build the production frontend.
-- From the repository root, run `.\.venv\Scripts\python.exe backend/smoke_test.py` against a migrated **development** MySQL database. The script creates and cleans up disposable test accounts.
-- To check discovery without MySQL, open `/api/books/popular` and `/api/books/surprise` in the API docs, then try title search and Surprise Me in the app.
+- From the repository root, run `.\.venv\Scripts\python.exe backend/smoke_test.py` against a migrated **development** database. The script creates and cleans up disposable test accounts.
+- To check discovery without a database, open `/api/books/popular` and `/api/books/surprise` in the API docs, then try title search and Surprise Me in the app.
 
 ## Publishing to GitHub
 
@@ -109,7 +109,9 @@ git remote add origin https://github.com/YOUR-USERNAME/NextChapter.git
 git push -u origin main
 ```
 
-For a deployment, build the frontend with `npm run build`, serve its output over HTTPS, and route `/api` on the same origin to FastAPI. Configure the server to return `index.html` for client-side routes. Provision the generated files and MySQL separately, then set `COOKIE_SECURE=true`, the exact public origin in `APP_ORIGINS`, and a deployment-specific `JWT_SECRET` on the API server.
+For a deployment, build the frontend with `npm run build`, serve its output over HTTPS, and route `/api` on the same origin to FastAPI. Configure the server to return `index.html` for client-side routes. Provision the generated runtime files separately. Set `COOKIE_SECURE=true`, the exact public origin in `APP_ORIGINS`, and a deployment-specific `JWT_SECRET` on the API server.
+
+To use hosted PostgreSQL, set `DATABASE_URL` on the API server to the provider's PostgreSQL connection URI. NextChapter uses this URI in place of the local MySQL settings. For [Aiven PostgreSQL](https://aiven.io/docs/products/postgresql/get-started), upload the [Aiven CA certificate](https://aiven.io/docs/platform/concepts/tls-ssl-certificates) as a server file and set `DB_SSL_CA` to its path to verify the server's identity. Run `python -m alembic -c backend/alembic.ini upgrade head` against the new database before serving requests. A fresh database starts with empty accounts and reading lists.
 
 ## Dataset credit
 

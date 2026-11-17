@@ -69,7 +69,8 @@ def commit(db, conflict):
         db.commit()
     except IntegrityError as exc:
         db.rollback()
-        if exc.orig.args and exc.orig.args[0] == 1062:
+        mysql_duplicate = exc.orig.args and exc.orig.args[0] == 1062
+        if mysql_duplicate or getattr(exc.orig, "sqlstate", None) == "23505":
             raise HTTPException(409, conflict) from exc
         raise
 
@@ -125,7 +126,7 @@ def surprise_book(
             if exc.status_code not in (401, 503):
                 raise
         except (OperationalError, ProgrammingError):
-            # The public draw can still work while MySQL is unavailable.
+            # The public draw can still work while the database is unavailable.
             pass
 
     previous = filter(None, (exclude_isbn, request.cookies.get(SURPRISE_COOKIE)))

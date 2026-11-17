@@ -95,7 +95,7 @@ async def invalid_request(request, exc):
 @app.exception_handler(ProgrammingError)
 async def database_unavailable(request, exc):
     return JSONResponse(status_code=503, content={
-        "detail": "MySQL is unavailable or not initialized. Check the connection and run the migrations."
+        "detail": "The database is unavailable or not initialized. Check the connection and run the migrations."
     })
 
 

@@ -1,7 +1,8 @@
 from datetime import datetime
 from enum import Enum
 
-from sqlalchemy import Enum as SQLEnum, ForeignKey, String, UniqueConstraint, text
+from sqlalchemy import Enum as SQLEnum, ForeignKey, String, UniqueConstraint, func, text
+from sqlalchemy.dialects import mysql
 from sqlalchemy.orm import Mapped, mapped_column
 
 from database import Base
@@ -31,11 +32,15 @@ class ReadingEntry(Base):
     )
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
-    isbn: Mapped[str] = mapped_column(String(32, collation="utf8mb4_bin"))
+    isbn: Mapped[str] = mapped_column(
+        String(32).with_variant(String(32, collation="utf8mb4_bin"), "mysql")
+    )
     reading_status: Mapped[ReadingStatus] = mapped_column(
-        SQLEnum(ReadingStatus), server_default="want_to_read"
+        SQLEnum(ReadingStatus, name="reading_status", native_enum=False, create_constraint=True)
+        .with_variant(mysql.ENUM(ReadingStatus), "mysql"),
+        server_default="want_to_read",
     )
     created_at: Mapped[datetime] = mapped_column(server_default=text("CURRENT_TIMESTAMP"))
     updated_at: Mapped[datetime] = mapped_column(
-        server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP")
+        server_default=text("CURRENT_TIMESTAMP"), onupdate=func.current_timestamp()
     )

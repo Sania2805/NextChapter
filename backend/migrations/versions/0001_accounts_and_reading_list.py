@@ -1,6 +1,7 @@
 """Create NextChapter accounts and reading lists."""
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects import mysql
 
 revision = "0001"
 down_revision = None
@@ -9,6 +10,12 @@ depends_on = None
 
 
 def upgrade():
+    is_mysql = op.get_context().dialect.name == "mysql"
+    statuses = ("want_to_read", "reading", "finished")
+    reading_status = (
+        mysql.ENUM(*statuses) if is_mysql
+        else sa.Enum(*statuses, name="reading_status", native_enum=False, create_constraint=True)
+    )
     op.create_table(
         "users",
         sa.Column("id", sa.Integer(), primary_key=True),
@@ -22,12 +29,13 @@ def upgrade():
         "reading_list",
         sa.Column("id", sa.Integer(), primary_key=True),
         sa.Column("user_id", sa.Integer(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("isbn", sa.String(32, collation="utf8mb4_bin"), nullable=False),
-        sa.Column("reading_status", sa.Enum("want_to_read", "reading", "finished"),
+        sa.Column("isbn", sa.String(32, collation="utf8mb4_bin" if is_mysql else None), nullable=False),
+        sa.Column("reading_status", reading_status,
                   server_default="want_to_read", nullable=False),
         sa.Column("created_at", sa.DateTime(), server_default=sa.text("CURRENT_TIMESTAMP"), nullable=False),
         sa.Column("updated_at", sa.DateTime(),
-                  server_default=sa.text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"), nullable=False),
+                  server_default=sa.text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"
+                                         if is_mysql else "CURRENT_TIMESTAMP"), nullable=False),
         sa.UniqueConstraint("user_id", "isbn", name="uq_reading_user_isbn"),
         mysql_engine="InnoDB", mysql_charset="utf8mb4",
     )
